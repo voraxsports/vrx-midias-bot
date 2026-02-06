@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import json
 import os
 import time
@@ -26,6 +27,12 @@ COLOR_IG = 0xC13584
 POSTED_IDS_LIMIT = 120          # histórico curto pra evitar repost
 MAX_ITEMS_HARD_CAP = 10         # segurança
 
+BRAND_NAME = (os.getenv("BRAND_NAME", "Vorax eSports") or "Vorax eSports").strip()
+YT_CHANNEL_URL = (os.getenv("YT_CHANNEL_URL", "https://youtube.com/@voraxsports") or "").strip()
+IG_PROFILE_URL = (os.getenv("IG_PROFILE_URL", "https://www.instagram.com/voraxsportss/") or "").strip()
+
+BRAND_ICON_URL = (os.getenv("BRAND_ICON_URL", "") or "").strip() or None     # ícone pequeno no embed
+BOT_AVATAR_URL = (os.getenv("BOT_AVATAR_URL", "") or "").strip() or None     # avatar do webhook (topo)
 
 # ==========================
 # Logging
@@ -192,6 +199,8 @@ def post_discord_embed(session: requests.Session, webhook_url: str, embed: Dict[
         "allowed_mentions": {"parse": []},
         "embeds": [embed],
     }
+    if BOT_AVATAR_URL:
+        payload["avatar_url"] = BOT_AVATAR_URL
 
     for attempt in range(1, 4):
         r = session.post(webhook_url, json=payload, timeout=20)
@@ -210,6 +219,7 @@ def post_discord_embed(session: requests.Session, webhook_url: str, embed: Dict[
             continue
 
         raise RuntimeError(f"Discord webhook failed: {r.status_code} | {r.text[:240]}")
+
 
 
 # ==========================
@@ -243,33 +253,66 @@ def parse_youtube_feed(
         link = (getattr(e, "link", "") or "").strip()
         title = (getattr(e, "title", "Vídeo novo") or "Vídeo novo").strip()
         video_id = getattr(e, "yt_videoid", None)
+        published_unix = None
+        pp = getattr(e, "published_parsed", None)
+        if pp:
+            published_unix = int(calendar.timegm(pp))
 
+
+        
         if (not video_id) and ("watch?v=" in link):
             video_id = link.split("watch?v=")[-1].split("&")[0].strip()
 
         if not video_id:
             continue
 
-        entries_out.append({
-            "id": str(video_id),
-            "title": title,
-            "url": link or f"https://www.youtube.com/watch?v={video_id}",
-            "thumb": f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
-        })
+    entries_out.append({
+        "id": str(video_id),
+        "title": title,
+        "url": link or f"https://www.youtube.com/watch?v={video_id}",
+        "thumb": f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+        "published_unix": published_unix,
+    })
+
 
     return entries_out, new_etag or etag, new_modified or modified, status
 
 
 def youtube_embed(item: Dict[str, str]) -> Dict[str, Any]:
-    return {
-        "title": "🎥 Novo vídeo no YouTube",
+    published_unix = item.get("published_unix")
+    lines = [
+        "🚀 **Saiu vídeo novo!**",
+        f"▶️ **[Assistir agora]({item['url']})**",
+    ]
+    if isinstance(published_unix, int) and published_unix > 0:
+        lines.append(f"🕒 Publicado <t:{published_unix}:R>")
+
+    emb: Dict[str, Any] = {
+        "title": f"🎥 {item['title']}",
         "url": item["url"],
-        "description": item["title"],
+        "description": "\n".join(lines),
         "color": COLOR_YT,
-        "thumbnail": {"url": item["thumb"]},
-        "timestamp": now_iso(),
+        "image": {"url": item["thumb"]},  # imagem grande (bem mais bonita)
         "footer": {"text": FOOTER_TEXT},
+        "timestamp": now_iso(),
     }
+
+    author = {"name": BRAND_NAME}
+    if YT_CHANNEL_URL:
+        author["url"] = YT_CHANNEL_URL
+    if BRAND_ICON_URL:
+        author["icon_url"] = BRAND_ICON_URL
+        emb["thumbnail"] = {"url": BRAND_ICON_URL}
+    emb["author"] = author
+
+    # Detalhe “pro”
+    emb["fields"] = [
+        {"name": "Plataforma", "value": "YouTube", "inline": True},
+        {"name": "Canal", "value": BRAND_NAME, "inline": True},
+    ]
+
+    return emb
+
 
 
 # ==========================
@@ -324,20 +367,36 @@ def fetch_instagram_media(
 
 
 def instagram_embed(item: Dict[str, str]) -> Dict[str, Any]:
+    caption = item["caption"]
+    # dá um ar mais clean (menos bloco de texto)
+    desc = f"{caption}\n\n📲 **[Abrir no Instagram]({item['url']})**"
+
     emb: Dict[str, Any] = {
         "title": "📸 Novo post no Instagram",
         "url": item["url"],
-        "description": item["caption"],
+        "description": desc,
         "color": COLOR_IG,
-        "timestamp": now_iso(),
         "footer": {"text": FOOTER_TEXT},
+        "timestamp": item.get("timestamp") or now_iso(),
         "fields": [
             {"name": "Tipo", "value": item["media_type"], "inline": True},
+            {"name": "Perfil", "value": f"[{BRAND_NAME}]({IG_PROFILE_URL})" if IG_PROFILE_URL else BRAND_NAME, "inline": True},
         ],
     }
+
     if item.get("image"):
         emb["image"] = {"url": item["image"]}
+
+    author = {"name": BRAND_NAME}
+    if IG_PROFILE_URL:
+        author["url"] = IG_PROFILE_URL
+    if BRAND_ICON_URL:
+        author["icon_url"] = BRAND_ICON_URL
+        emb["thumbnail"] = {"url": BRAND_ICON_URL}
+    emb["author"] = author
+
     return emb
+
 
 
 # ==========================
