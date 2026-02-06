@@ -41,7 +41,7 @@ jobs:
           IG_GRAPH_VERSION: ${{ secrets.IG_GRAPH_VERSION }}
           MAX_ITEMS_PER_RUN: "3"
           DRY_RUN: "0"
-          ALLOW_INITIAL_POST: "0"
+          ALLOW_INITIAL_POST: "1"
           ALLOW_BATCH_POSTS: "1"
         run: |
           python bot.py
