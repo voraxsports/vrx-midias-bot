@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "meta": {
+    "org": "Vorax eSports",
+    "channel": "midias-vrx",
+    "created_at_utc": "2026-02-06T00:00:00Z"
+  },
+  "youtube": {
+    "channel_id": "UCk3OtKKa0EeQmWjsTzosaEg",
+    "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCk3OtKKa0EeQmWjsTzosaEg",
+    "last_video_id": "",
+    "etag": null,
+    "modified": null
+  },
+  "instagram": {
+    "profile_url": "https://www.instagram.com/voraxsportss/",
+    "last_media_id": ""
+  },
+  "dedupe": {
+    "posted_ids": [],
+    "limit": 120
+  }
+}
