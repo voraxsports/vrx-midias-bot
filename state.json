@@ -1,9 +1,5 @@
-{
-  "version": 1,
+﻿{
   "youtube_last_video_id": "",
   "instagram_last_media_id": "",
-  "posted_ids": [],
-  "yt_etag": null,
-  "yt_modified": null
+  "posted_ids": []
 }
-
