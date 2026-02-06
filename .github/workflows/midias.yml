@@ -43,6 +43,12 @@ jobs:
           DRY_RUN: "0"
           ALLOW_INITIAL_POST: "1"
           ALLOW_BATCH_POSTS: "1"
+          BRAND_NAME: "Vorax eSports"
+          YT_CHANNEL_URL: "https://youtube.com/@voraxsports"
+          IG_PROFILE_URL: "https://www.instagram.com/voraxsportss/"
+          # BRAND_ICON_URL: "https://SUA_URL_DA_IMAGEM.png"
+          # BOT_AVATAR_URL: "https://SUA_URL_DA_IMAGEM.png"
+
         run: |
           python bot.py
 
