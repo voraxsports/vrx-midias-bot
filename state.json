@@ -1,5 +1,10 @@
-﻿{
-  "youtube_last_video_id": "",
+{
+  "version": 1,
+  "youtube_last_video_id": "H3sOQuBVjl4",
   "instagram_last_media_id": "",
-  "posted_ids": []
+  "posted_ids": [
+    "yt:H3sOQuBVjl4"
+  ],
+  "yt_etag": null,
+  "yt_modified": null
 }
