@@ -63,6 +63,17 @@ def now_iso() -> str:
     # Discord embed timestamp accepts ISO8601
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+DISCORD_TITLE_MAX = 256
+DISCORD_DESC_MAX = 4096
+
+def clip(text: str, limit: int) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+def unix_to_iso(unix_ts: int) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(unix_ts)))
 
 # ==========================
 # Config
@@ -230,7 +241,6 @@ def parse_youtube_feed(
     etag: Optional[str],
     modified: Optional[str],
 ) -> Tuple[List[Dict[str, str]], Optional[str], Optional[str], int]:
-    # feedparser supports conditional fetch via etag/modified
     kwargs: Dict[str, Any] = {}
     if etag:
         kwargs["etag"] = etag
@@ -245,9 +255,40 @@ def parse_youtube_feed(
 
     entries_out: List[Dict[str, str]] = []
 
-    # If 304, no changes
     if status == 304:
         return entries_out, new_etag or etag, new_modified or modified, status
+
+    for e in (d.entries or []):
+        link = (getattr(e, "link", "") or "").strip()
+        title = (getattr(e, "title", "Vídeo novo") or "Vídeo novo").strip()
+
+        video_id = getattr(e, "yt_videoid", None)
+        if (not video_id) and ("watch?v=" in link):
+            video_id = link.split("watch?v=")[-1].split("&")[0].strip()
+
+        if not video_id:
+            continue
+
+        published_unix = 0
+        pp = getattr(e, "published_parsed", None)
+        if pp:
+            published_unix = int(calendar.timegm(pp))
+
+        # thumbnail mais “à prova de falha”
+        thumb = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+        entries_out.append({
+            "id": str(video_id),
+            "title": title,
+            "url": link or f"https://www.youtube.com/watch?v={video_id}",
+            "thumb": thumb,
+            "published_unix": published_unix,
+        })
+
+    # garante ordem newest->oldest
+    entries_out.sort(key=lambda x: int(x.get("published_unix") or 0), reverse=True)
+
+    return entries_out, new_etag or etag, new_modified or modified, status
 
     for e in (d.entries or []):
         link = (getattr(e, "link", "") or "").strip()
@@ -279,22 +320,31 @@ def parse_youtube_feed(
 
 
 def youtube_embed(item: Dict[str, str]) -> Dict[str, Any]:
-    published_unix = item.get("published_unix")
+    published_unix = int(item.get("published_unix") or 0)
+    ts = unix_to_iso(published_unix) if published_unix > 0 else now_iso()
+
     lines = [
         "🚀 **Saiu vídeo novo!**",
         f"▶️ **[Assistir agora]({item['url']})**",
     ]
-    if isinstance(published_unix, int) and published_unix > 0:
+    if published_unix > 0:
         lines.append(f"🕒 Publicado <t:{published_unix}:R>")
 
+    title = clip(f"🎥 {item['title']}", DISCORD_TITLE_MAX)
+    desc = clip("\n".join(lines), DISCORD_DESC_MAX)
+
     emb: Dict[str, Any] = {
-        "title": f"🎥 {item['title']}",
+        "title": title,
         "url": item["url"],
-        "description": "\n".join(lines),
+        "description": desc,
         "color": COLOR_YT,
-        "image": {"url": item["thumb"]},  # imagem grande (bem mais bonita)
+        "image": {"url": item["thumb"]},
         "footer": {"text": FOOTER_TEXT},
-        "timestamp": now_iso(),
+        "timestamp": ts,
+        "fields": [
+            {"name": "Plataforma", "value": "YouTube", "inline": True},
+            {"name": "Canal", "value": BRAND_NAME, "inline": True},
+        ],
     }
 
     author = {"name": BRAND_NAME}
@@ -305,13 +355,8 @@ def youtube_embed(item: Dict[str, str]) -> Dict[str, Any]:
         emb["thumbnail"] = {"url": BRAND_ICON_URL}
     emb["author"] = author
 
-    # Detalhe “pro”
-    emb["fields"] = [
-        {"name": "Plataforma", "value": "YouTube", "inline": True},
-        {"name": "Canal", "value": BRAND_NAME, "inline": True},
-    ]
-
     return emb
+
 
 
 
@@ -367,9 +412,8 @@ def fetch_instagram_media(
 
 
 def instagram_embed(item: Dict[str, str]) -> Dict[str, Any]:
-    caption = item["caption"]
-    # dá um ar mais clean (menos bloco de texto)
-    desc = f"{caption}\n\n📲 **[Abrir no Instagram]({item['url']})**"
+caption = clip(item.get("caption", "(sem legenda)"), 3000)
+desc = clip(f"{caption}\n\n📲 **[Abrir no Instagram]({item['url']})**", DISCORD_DESC_MAX)
 
     emb: Dict[str, Any] = {
         "title": "📸 Novo post no Instagram",
