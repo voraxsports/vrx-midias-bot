@@ -412,34 +412,45 @@ def fetch_instagram_media(
 
 
 def instagram_embed(item: Dict[str, str]) -> Dict[str, Any]:
-caption = clip(item.get("caption", "(sem legenda)"), 3000)
-desc = clip(f"{caption}\n\n📲 **[Abrir no Instagram]({item['url']})**", DISCORD_DESC_MAX)
+    # deixa chamativo e seguro (sem estourar limite do Discord)
+    caption = (item.get("caption") or "(sem legenda)").strip()
+    if len(caption) > 2800:
+        caption = caption[:2797] + "..."
+
+    url = item.get("url") or ""
+    desc = f"{caption}\n\n📲 **[Abrir no Instagram]({url})**"
+
+    brand_name = (os.getenv("BRAND_NAME", "Vorax eSports") or "Vorax eSports").strip()
+    ig_profile_url = (os.getenv("IG_PROFILE_URL", "https://www.instagram.com/voraxsportss/") or "").strip()
+    brand_icon_url = (os.getenv("BRAND_ICON_URL", "") or "").strip()
 
     emb: Dict[str, Any] = {
-        "title": "📸 Novo post no Instagram",
-        "url": item["url"],
+        "title": "📸 Post novo no Instagram",
+        "url": url,
         "description": desc,
         "color": COLOR_IG,
-        "footer": {"text": FOOTER_TEXT},
         "timestamp": item.get("timestamp") or now_iso(),
+        "footer": {"text": FOOTER_TEXT},
         "fields": [
-            {"name": "Tipo", "value": item["media_type"], "inline": True},
-            {"name": "Perfil", "value": f"[{BRAND_NAME}]({IG_PROFILE_URL})" if IG_PROFILE_URL else BRAND_NAME, "inline": True},
+            {"name": "Tipo", "value": item.get("media_type", "—"), "inline": True},
+            {"name": "Perfil", "value": f"[{brand_name}]({ig_profile_url})" if ig_profile_url else brand_name, "inline": True},
         ],
     }
 
     if item.get("image"):
         emb["image"] = {"url": item["image"]}
 
-    author = {"name": BRAND_NAME}
-    if IG_PROFILE_URL:
-        author["url"] = IG_PROFILE_URL
-    if BRAND_ICON_URL:
-        author["icon_url"] = BRAND_ICON_URL
-        emb["thumbnail"] = {"url": BRAND_ICON_URL}
+    # Author + ícone (se você setar BRAND_ICON_URL)
+    author = {"name": brand_name}
+    if ig_profile_url:
+        author["url"] = ig_profile_url
+    if brand_icon_url:
+        author["icon_url"] = brand_icon_url
+        emb["thumbnail"] = {"url": brand_icon_url}
     emb["author"] = author
 
     return emb
+
 
 
 
